@@ -1,7 +1,10 @@
 CC = cc
 GDBFLAGS = -O0 -ggdb -g3
-CFLAGS = -Wall -pedantic $(GDBFLAGS)
+CFLAGS = $(GDBFLAGS) -Wall -pedantic -I/usr/include/GL
 LDFLAGS = -lm -lGL -lglut
 
-fnake:
+all:
 	$(CC) $(CFLAGS) $(LDFLAGS) fnake.c -o fnake
+
+clean:
+	rm -f fnake.o fnake

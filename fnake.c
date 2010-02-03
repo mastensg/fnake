@@ -10,8 +10,12 @@
 #define DEPTH 32
 
 /* Set up a window, or go into fullscreen. */
-static void init(int argc, char** argv, int w, int h, int depth)
+static int init(int argc, char** argv, int w, int h, int depth)
 {
+#ifndef WINDOWED
+    char modeString[16];
+#endif
+
     glutInit(&argc, argv);
 
 #ifdef WINDOWED
@@ -21,15 +25,32 @@ static void init(int argc, char** argv, int w, int h, int depth)
     glutCreateWindow(argv[0]);
 #else
     glutInitDisplayMode(GLUT_DEPTH | GLUT_DOUBLE | GLUT_RGBA);
-    glutGameModeString(sprintf("%dx%d:%d@85", w, h, depth));
+
+    if (snprintf(modeString, sizeof(modeString), "%dx%d:%d@85", w, h, depth) < 0)
+        return -1;
+
+    glutGameModeString(modeString);
     glutEnterGameMode();
     glutSetCursor(GLUT_CURSOR_NONE);
 #endif
+
+    return 0;
 }
 
 static void display(void)
 {
-    float t = glutGet(GLUT_ELAPSED_TIME);
+    /*float t = glutGet(GLUT_ELAPSED_TIME);*/
+
+    glPushMatrix();
+    glLoadIdentity();
+    glColor4f(0.2, 1, 0.2, 0.8);
+    glBegin(GL_QUADS);
+        glVertex3f(-1, -1, -1);
+        glVertex3f(1, -1, -1);
+        glVertex3f(1, 1, -1);
+        glVertex3f(-1, 1, -1);
+    glEnd();
+    glPopMatrix();
 
     glutSwapBuffers();
 }
@@ -58,7 +79,11 @@ static void keyboard(unsigned char key, int x, int y) {
 }
 
 int main(int argc, char** argv) {
-    init(argc, argv, WIDTH, HEIGHT, DEPTH);
+    if (init(argc, argv, WIDTH, HEIGHT, DEPTH))
+    {
+        fprintf(stderr, "Couldn't initialize.\n");
+        return 1;
+    }
 
     glClearColor(1, 1, 1, 0);
 
