@@ -11,10 +11,16 @@
 
 float last = 0.0;
 
-float x  = 0.5;
-float y  = 0.5;
-float vx = 1.0;
-float vy = 0.0;
+int direction = 0;
+
+struct link
+{
+    float x;
+    float y;
+    struct link* next;
+};
+
+struct link snake;
 
 /* Set up a window, or go into fullscreen. */
 static int init(int argc, char** argv, int w, int h, int depth)
@@ -49,8 +55,17 @@ static int init(int argc, char** argv, int w, int h, int depth)
     return 0;
 }
 
+static int placeLink(struct link* newLink, float x, float y)
+{
+    newLink->x = x;
+    newLink->y = y;
+
+    return 0;
+}
+
 static void drawLink(void)
 {
+    glScalef(0.9, 0.9, 1.0);
     glBegin(GL_QUADS);
         glVertex3f( 0,  0, 0);
         glVertex3f( 1,  0, 0);
@@ -59,31 +74,48 @@ static void drawLink(void)
     glEnd();
 }
 
-static void drawSnake(float x, float y)
+static void drawSnake(struct link* invisibleSnake)
 {
-    glPushMatrix();
-    glColor4f(0.2, 0.7, 1.0, 0.8);
-    glScalef(0.025, 0.025, 1.0);
+    struct link* currentLink;
 
-    glTranslatef(x, y, 0);
-    drawLink();
+    for (currentLink = invisibleSnake; currentLink != NULL; currentLink = currentLink->next)
+    {
+        glPushMatrix();
+        glColor4f(0.2, 0.7, 1.0, 0.8);
+        glScalef(0.025, 0.025, 1.0);
+        glTranslatef(currentLink->x, currentLink->y, 0);
+        drawLink();
+        glPopMatrix();
+    }
+}
 
-    glTranslatef(1, 0, 0);
-    drawLink();
+static void moveSnake(struct link* invisibleSnake, int invisibleDirection)
+{
+    struct link* currentLink;
 
-    glTranslatef(0, 1, 0);
-    drawLink();
+    switch invisibleSnake
+    {
+        case 0:
+            invisibleSnake->x += 1.0;
+            break;
 
-    glTranslatef(0, 1, 0);
-    drawLink();
+        case 1:
+            invisibleSnake->x += 1.0;
+            break;
 
-    glTranslatef(-1, 0, 0);
-    drawLink();
+        case 2:
+            invisibleSnake->x += 1.0;
+            break;
 
-    glTranslatef(0, 1, 0);
-    drawLink();
+        case 3:
+            invisibleSnake->x += 1.0;
+            break;
+    }
 
-    glPopMatrix();
+    for (currentLink = invisibleSnake; currentLink->next != NULL; currentLink = currentLink->next)
+    {
+        placeLink(invisibleSnake, invisibleSnake->next->x, invisibleSnake->next->y);
+    }
 }
 
 static void display(void)
@@ -93,12 +125,9 @@ static void display(void)
 
     last = t;
 
-    x += vx * dt;
-    y += vy * dt;
-
     glClear(GL_COLOR_BUFFER_BIT);
 
-    drawSnake(x, y);
+    drawSnake(&snake);
 
     glutSwapBuffers();
 }
@@ -110,7 +139,7 @@ static void reshape(int w, int h)
    glLoadIdentity();
    if (w <= h)
       gluOrtho2D (0.0, 1.0, 0.0, 1.0*(GLfloat)h/(GLfloat)w);
-   else 
+   else
       gluOrtho2D (0.0, 1.0*(GLfloat)w/(GLfloat)h, 0.0, 1.0);
 
 }
@@ -129,37 +158,35 @@ static void keyboard(unsigned char key, int x, int y)
 static void special(int key, int x, int y)
 {
     if (key == GLUT_KEY_LEFT)
-    {
-        vx = -1.0;
-        vy =  0.0;
-    }
+        direction = 2;
 
     if (key == GLUT_KEY_UP)
-    {
-        vx =  0.0;
-        vy =  1.0;
-    }
+        direction = 1;
 
     if (key == GLUT_KEY_RIGHT)
-    {
-        vx =  1.0;
-        vy =  0.0;
-    }
+        direction = 0;
 
     if (key == GLUT_KEY_DOWN)
-    {
-        vx =  0.0;
-        vy = -1.0;
-    }
+        direction = 3;
 }
 
 int main(int argc, char** argv)
 {
+    struct link link2;
+    struct link link3;
+
     if (init(argc, argv, WIDTH, HEIGHT, DEPTH))
     {
         fprintf(stderr, "Couldn't initialize.\n");
         return 1;
     }
+
+    placeLink(&snake, 3.0, 2.0);
+    snake.next = &link2;
+    placeLink(&link2, 4.0, 2.0);
+    link2.next = &link3;
+    placeLink(&link3, 5.0, 2.0);
+    link3.next = NULL;
 
     glutDisplayFunc(display);
     glutIdleFunc(display);
