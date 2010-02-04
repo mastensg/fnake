@@ -93,28 +93,28 @@ static void moveSnake(struct link* invisibleSnake, int invisibleDirection)
 {
     struct link* currentLink;
 
-    switch invisibleSnake
+    switch (invisibleDirection)
     {
         case 0:
             invisibleSnake->x += 1.0;
             break;
 
         case 1:
-            invisibleSnake->x += 1.0;
+            invisibleSnake->y += 1.0;
             break;
 
         case 2:
-            invisibleSnake->x += 1.0;
+            invisibleSnake->x -= 1.0;
             break;
 
         case 3:
-            invisibleSnake->x += 1.0;
+            invisibleSnake->y -= 1.0;
             break;
     }
 
     for (currentLink = invisibleSnake; currentLink->next != NULL; currentLink = currentLink->next)
     {
-        placeLink(invisibleSnake, invisibleSnake->next->x, invisibleSnake->next->y);
+        placeLink(invisibleSnake->next, invisibleSnake->x, invisibleSnake->y);
     }
 }
 
@@ -127,6 +127,7 @@ static void display(void)
 
     glClear(GL_COLOR_BUFFER_BIT);
 
+    moveSnake(&snake, direction);
     drawSnake(&snake);
 
     glutSwapBuffers();
