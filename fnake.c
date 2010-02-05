@@ -17,8 +17,8 @@
 
 #define STARTING_LENGTH 3
 
-/* Where the snake is going. */
 int direction = 0;
+int level = 0;
 
 struct link
 {
@@ -38,65 +38,6 @@ struct cookie
 };
 
 struct cookie cookie;
-
-/* Set up a window, or go into fullscreen mode. */
-static int init(int argc, char** argv, int w, int h, int depth)
-{
-#ifndef WINDOWED
-    char modeString[16];
-#endif
-
-    glutInit(&argc, argv);
-
-#ifdef WINDOWED
-    glutInitWindowPosition(0, 0);
-    glutInitWindowSize(w, h);
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
-    glutCreateWindow(argv[0]);
-#else
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
-
-    if (snprintf(modeString, sizeof(modeString), "%dx%d:%d@85", w, h, depth) < 0)
-        return -1;
-
-    glutGameModeString(modeString);
-    glutEnterGameMode();
-    glutSetCursor(GLUT_CURSOR_NONE);
-#endif
-
-    glEnable(GL_BLEND);
-    glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glShadeModel (GL_FLAT);
-    glClearColor(0, 0, 0, 0);
-
-    return 0;
-}
-
-static void drawSquare(int x, int y)
-{
-    glPushMatrix();
-    glScalef(1/(float)HOR_SIZE, 1/(float)VER_SIZE, 1.0);
-    glTranslatef(x, y, 0);
-    glScalef(0.8, 0.8, 1.0);
-    glBegin(GL_QUADS);
-        glVertex3f( 0,  0, 0);
-        glVertex3f( 1,  0, 0);
-        glVertex3f( 1,  1, 0);
-        glVertex3f( 0,  1, 0);
-    glEnd();
-    glPopMatrix();
-}
-
-static void drawSnake()
-{
-    struct link* currentLink;
-
-    for (currentLink = snake; currentLink != NULL; currentLink = currentLink->next)
-    {
-        glColor4f(0.2, 0.7, 1.0, 0.8);
-        drawSquare(currentLink->x, currentLink->y);
-    }
-}
 
 /* Add another link to the snake. */
 static void growSnake(void)
@@ -158,46 +99,134 @@ static void moveSnake(void)
         snake->y = VER_SIZE - 1;
 }
 
-static void display(void)
+/* Move the cookie out of the way. */
+static void moveCookie(void)
 {
-    glClear(GL_COLOR_BUFFER_BIT);
-    drawSnake();
-    glColor4f(0.7, 0.2, 1.0, 0.8);
-    drawSquare(cookie.x, cookie.y);
-    glutSwapBuffers();
+    int occupied;
+    struct link* currentLink;
+
+    while (occupied)
+    {
+        occupied = 0;
+
+        cookie.x = rand() % HOR_SIZE;
+        cookie.y = rand() % VER_SIZE;
+
+        for (currentLink = snake; currentLink->next != NULL; currentLink = currentLink->next)
+        {
+            if (cookie.x == currentLink->x && cookie.y == currentLink->y)
+            {
+                occupied = 1;
+                break;
+            }
+        }
+    }
+}
+
+static int collision(void)
+{
+    struct link* currentLink;
+
+    /* Check if the snake has collided with itself. */
+    for (currentLink = snake->next; currentLink->next != NULL; currentLink = currentLink->next)
+    {
+        if (snake->x == currentLink->x && snake->y == currentLink->y)
+        {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static void initLevel(int level)
+{
+    int i;
+
+    /* Spawn a brand new snake. It's only a head for now. */
+    snake = malloc(sizeof(struct link));
+    snake->x = 3;
+    snake->y = 6;
+    snake->next = NULL;
+
+    /* Let the snake grow for a while. */
+    for (i = 1; i < STARTING_LENGTH; ++i)
+        growSnake();
+
+    /* Drop a cookie in there. */
+    srand(level);
+    moveCookie();
+    cookie.goodness = 3;
+}
+
+static void die(void)
+{
+    initLevel(level);
 }
 
 static void interact(void)
 {
     int i;
-    int collision;
-    struct link* currentLink;
 
     moveSnake();
 
+    if (collision())
+        die();
+
     if (snake->x == cookie.x && snake->y == cookie.y)
     {
+        /* Convert cookie to snake. */
         for (i = 1; i < cookie.goodness; ++i)
             growSnake();
 
-        /* Move the cookie out of the way. */
-        while (collision)
-        {
-            collision = 0;
-
-            cookie.x = rand() % HOR_SIZE;
-            cookie.y = rand() % VER_SIZE;
-
-            for (currentLink = snake; currentLink->next != NULL; currentLink = currentLink->next)
-            {
-                if (cookie.x == currentLink->x && cookie.y == currentLink->y)
-                {
-                    collision = 1;
-                    break;
-                }
-            }
-        }
+        moveCookie();
     }
+}
+
+/* Set up a window, or go into fullscreen mode. */
+static void drawSquare(int x, int y)
+{
+    glPushMatrix();
+    glScalef(1/(float)HOR_SIZE, 1/(float)VER_SIZE, 1.0);
+    glTranslatef(x, y, 0);
+    glScalef(0.8, 0.8, 1.0);
+    glBegin(GL_QUADS);
+        glVertex3f( 0,  0, 0);
+        glVertex3f( 1,  0, 0);
+        glVertex3f( 1,  1, 0);
+        glVertex3f( 0,  1, 0);
+    glEnd();
+    glPopMatrix();
+}
+
+static void drawLevel(level)
+{
+}
+
+static void drawSnake(void)
+{
+    struct link* currentLink;
+
+    for (currentLink = snake; currentLink != NULL; currentLink = currentLink->next)
+    {
+        drawSquare(currentLink->x, currentLink->y);
+    }
+}
+
+static void display(void)
+{
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glColor4f(0.1, 0.2, 7.0, 0.8);
+    drawLevel(level);
+
+    glColor4f(0.2, 0.7, 1.0, 0.8);
+    drawSnake();
+
+    glColor4f(0.7, 0.2, 1.0, 0.8);
+    drawSquare(cookie.x, cookie.y);
+
+    glutSwapBuffers();
 }
 
 static void animate(int value)
@@ -252,38 +281,52 @@ static void special(int key, int x, int y)
     }
 }
 
+static int init(int argc, char** argv, int w, int h, int depth)
+{
+#ifndef WINDOWED
+    char modeString[16];
+#endif
+
+    glutInit(&argc, argv);
+
+#ifdef WINDOWED
+    glutInitWindowPosition(0, 0);
+    glutInitWindowSize(w, h);
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+    glutCreateWindow(argv[0]);
+#else
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+
+    if (snprintf(modeString, sizeof(modeString), "%dx%d:%d@85", w, h, depth) < 0)
+        return -1;
+
+    glutGameModeString(modeString);
+    glutEnterGameMode();
+    glutSetCursor(GLUT_CURSOR_NONE);
+#endif
+
+    glEnable(GL_BLEND);
+    glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glShadeModel (GL_FLAT);
+    glClearColor(0, 0, 0, 0);
+
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
-    int i;
-
     if (init(argc, argv, WIDTH, HEIGHT, DEPTH))
     {
         fprintf(stderr, "Couldn't initialize.\n");
         return 1;
     }
 
-    /* Spawn a brand new snake. It's only a head for now. */
-    snake = malloc(sizeof(struct link));
-    snake->x = 3;
-    snake->y = 6;
-    snake->next = NULL;
-
-    /* Let the snake grow for a while. */
-    for (i = 1; i < STARTING_LENGTH; ++i)
-        growSnake();
-
-    /* Drop a cookie in there. */
-    srand(1);
-
-    cookie.x = 10;
-    cookie.y = 18;
-    cookie.goodness = 3;
-
     glutDisplayFunc(display);
     glutReshapeFunc(reshape);
     glutKeyboardFunc(keyboard);
     glutSpecialFunc(special);
 
+    initLevel(level);
     animate(0);
 
     glutMainLoop();
