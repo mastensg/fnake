@@ -57,17 +57,6 @@ static int init(int argc, char** argv, int w, int h, int depth)
     return 0;
 }
 
-static void drawLink(void)
-{
-    glScalef(0.9, 0.9, 1.0);
-    glBegin(GL_QUADS);
-        glVertex3f( 0,  0, 0);
-        glVertex3f( 1,  0, 0);
-        glVertex3f( 1,  1, 0);
-        glVertex3f( 0,  1, 0);
-    glEnd();
-}
-
 static void drawSnake(struct link* invisibleSnake)
 {
     struct link* currentLink;
@@ -78,7 +67,13 @@ static void drawSnake(struct link* invisibleSnake)
         glColor4f(0.2, 0.7, 1.0, 0.8);
         glScalef(0.025, 0.025, 1.0);
         glTranslatef(currentLink->x, currentLink->y, 0);
-        drawLink();
+        glScalef(0.9, 0.9, 1.0);
+        glBegin(GL_QUADS);
+            glVertex3f( 0,  0, 0);
+            glVertex3f( 1,  0, 0);
+            glVertex3f( 1,  1, 0);
+            glVertex3f( 0,  1, 0);
+        glEnd();
         glPopMatrix();
     }
 }
