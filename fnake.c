@@ -21,8 +21,8 @@ int direction = 0;
 
 struct link
 {
-    float x;
-    float y;
+    int x;
+    int y;
     struct link* next;
 };
 
@@ -94,33 +94,45 @@ static void moveSnake(void)
 {
     struct link* currentLink;
 
+    /* Go through the snake. Stop one link before the tail. */
     for (currentLink = snake; currentLink->next->next != NULL; currentLink = currentLink->next);
 
+    /* Move the tail on top of the head. */
     currentLink->next->next = snake;
     snake = currentLink->next;
     currentLink->next = NULL;
-
     snake->x = snake->next->x;
     snake->y = snake->next->y;
 
+    /* Move the head in the direction the snake is going. */
     switch (direction)
     {
         case 0:
-            snake->x += 1.0;
+            ++snake->x;
             break;
 
         case 1:
-            snake->x -= 1.0;
+            --snake->x;
             break;
 
         case 2:
-            snake->y += 1.0;
+            ++snake->y;
             break;
 
         case 3:
-            snake->y -= 1.0;
+            --snake->y;
             break;
     }
+
+    /* Wrap around if the snake is at the edge. */
+    if (snake->x >= HOR_SIZE)
+        snake->x = 0;
+    else if (snake->x < 0)
+        snake->x = HOR_SIZE - 1;
+    else if (snake->y >= VER_SIZE)
+        snake->y = 0;
+    else if (snake->y < 0)
+        snake->y = VER_SIZE - 1;
 }
 
 static void display(void)
@@ -140,12 +152,12 @@ static void animate(int value)
 static void reshape(int w, int h)
 {
     glViewport(0, 0, (GLsizei) w, (GLsizei) h);
-   glMatrixMode(GL_PROJECTION);
-   glLoadIdentity();
-   if (w <= h)
-      gluOrtho2D (0.0, 1.0, 0.0, 1.0*(GLfloat)h/(GLfloat)w);
-   else
-      gluOrtho2D (0.0, 1.0*(GLfloat)w/(GLfloat)h, 0.0, 1.0);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    if (w <= h)
+        gluOrtho2D (0.0, 1.0, 0.0, 1.0*(GLfloat)h/(GLfloat)w);
+    else
+        gluOrtho2D (0.0, 1.0*(GLfloat)w/(GLfloat)h, 0.0, 1.0);
 
 }
 
@@ -167,16 +179,14 @@ static void special(int key, int x, int y)
 
     if (key == GLUT_KEY_RIGHT && direction > 1)
         newDirection = 0;
-
-    if (key == GLUT_KEY_LEFT  && direction > 1)
+    else if (key == GLUT_KEY_LEFT  && direction > 1)
         newDirection = 1;
-
-    if (key == GLUT_KEY_UP    && direction <= 1)
+    else if (key == GLUT_KEY_UP    && direction <= 1)
         newDirection = 2;
-
-    if (key == GLUT_KEY_DOWN  && direction <= 1)
+    else if (key == GLUT_KEY_DOWN  && direction <= 1)
         newDirection = 3;
 
+    /* Move immediately if the direction has changed. */
     if (newDirection != direction)
     {
         direction = newDirection;
