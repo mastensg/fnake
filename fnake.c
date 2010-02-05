@@ -3,25 +3,29 @@
 #include <GL/glut.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
 #define WINDOWED
 #define WIDTH 640
 #define HEIGHT 480
 #define DEPTH 32
 
-#define FRAME_LENGTH 100
+#define FRAME_LENGTH 10
 
 /* World size */
 #define HOR_SIZE 24
 #define VER_SIZE 24
 
 #define STARTING_LENGTH 3
-#define COOKIE_GOODNESS 3
+#define COOKIE_GOODNESS 8
 #define GOAL 10
+#define WAIT 100
 
 int direction;
 int cookies;
 int level;
+int last;
+int wait;
 
 struct point
 {
@@ -401,7 +405,7 @@ static void interact(void)
                 initLevel(++level);
 
             /* Convert cookie to snake. */
-            for (i = 1; i < COOKIE_GOODNESS; ++i)
+            for (i = 0; i < COOKIE_GOODNESS; ++i)
                 addPoint(snake);
 
             moveCookie(currentCookie);
@@ -450,24 +454,50 @@ static void drawSquares(struct point* head)
 
 static void display(void)
 {
+    int x;
+    int y;
+    float t = glutGet(GLUT_ELAPSED_TIME);
+
     glClear(GL_COLOR_BUFFER_BIT);
 
-    glColor4f(0.1, 0.2, 7.0, 0.8);
+    for (y = 0; y < VER_SIZE; ++y)
+    {
+        for (x = 0; x < HOR_SIZE; ++x)
+        {
+            glColor4f(0.0,
+                    0.0,
+                    0.75 + 0.225 * sin((float)x*8/HOR_SIZE + t/2000) + 0.125 * cos((float)y*8/VER_SIZE + t/2000),
+                    1.0);
+            drawSquare(x, y);
+        }
+    }
+
+    glColor4f(0.5, 0.5, 1.0, 1.0);
     drawLevel(level);
 
-    glColor4f(0.2, 0.7, 1.0, 0.8);
+    glColor4f(1.0, 1.0, 1.0, 1.0);
     drawSquares(snake);
 
-    glColor4f(0.7, 0.2, 1.0, 0.8);
+    glColor4f(0.2, 0.7, 1.0, 1.0);
     drawSquares(cookie);
 
     glutSwapBuffers();
 }
 
-static void animate(int value)
+static void idle(void)
 {
-    glutTimerFunc(FRAME_LENGTH, animate, 0);
-    interact();
+    float t = glutGet(GLUT_ELAPSED_TIME);
+    float dt = t - last;
+
+    last = t;
+    wait += dt;
+
+    if (wait > WAIT)
+    {
+        interact();
+        wait = 0;
+    }
+
     display();
 }
 
@@ -522,8 +552,8 @@ static void special(int key, int x, int y)
     if (newDirection != direction)
     {
         direction = newDirection;
+        wait = 0;
         interact();
-        display();
     }
 }
 
@@ -568,16 +598,17 @@ int main(int argc, char** argv)
     }
 
     glutDisplayFunc(display);
-    glutReshapeFunc(reshape);
+    glutIdleFunc(idle);
     glutKeyboardFunc(keyboard);
+    glutReshapeFunc(reshape);
     glutSpecialFunc(special);
 
     snake = malloc(sizeof(struct point));
     cookie = malloc(sizeof(struct point));
 
     level = 0;
+    last  = 0;
     initLevel(level);
-    animate(0);
 
     glutMainLoop();
 
