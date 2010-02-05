@@ -16,49 +16,100 @@
 #define VER_SIZE 24
 
 #define STARTING_LENGTH 3
+#define COOKIE_GOODNESS 3
+#define GOAL 5
 
 int direction = 0;
+int cookies = 0;
 int level = 0;
 
-struct link
+struct point
 {
     int x;
     int y;
-    struct link* next;
+    struct point* next;
 };
 
-struct link* snake;
+struct point* snake;
+struct point* cookie;
 
-/* The snake eats cookies. Yum. */
-struct cookie
-{
-    int x;
-    int y;
-    int goodness;
+int levels[2][24][24] = {
+    {
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+    },
+    {
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+    }
 };
 
-struct cookie cookie;
-
-/* Add another link to the snake. */
-static void growSnake(void)
+/* Add another point to a list. */
+static struct point* addPoint(struct point* head)
 {
-    struct link* currentLink;
-    struct link* newLink;
+    struct point* currentPoint;
+    struct point* newPoint;
 
-    /* Go through the snake. Stop at the tail. */
-    for (currentLink = snake; currentLink->next != NULL; currentLink = currentLink->next);
+    /* Go through the list. Stop at the tail. */
+    for (currentPoint = head; currentPoint->next != NULL; currentPoint = currentPoint->next);
 
     /* Make a new tail. */
-    newLink = malloc(sizeof(struct link));
-    *newLink = *currentLink;
-    currentLink->next = newLink;
+    newPoint = malloc(sizeof(struct point));
+    *newPoint = *currentPoint;
+    currentPoint->next = newPoint;
+
+    return newPoint;
 }
 
 static void moveSnake(void)
 {
-    struct link* currentLink;
+    struct point* currentLink;
 
-    /* Go through the snake. Stop one link before the tail. */
+    /* Go through the snake. Stop one point before the tail. */
     for (currentLink = snake; currentLink->next->next != NULL; currentLink = currentLink->next);
 
     /* Move the tail on top of the head. */
@@ -80,11 +131,11 @@ static void moveSnake(void)
             break;
 
         case 2:
-            ++snake->y;
+            --snake->y;
             break;
 
         case 3:
-            --snake->y;
+            ++snake->y;
             break;
     }
 
@@ -99,64 +150,74 @@ static void moveSnake(void)
         snake->y = VER_SIZE - 1;
 }
 
-/* Move the cookie out of the way. */
-static void moveCookie(void)
+static int occupied(int x, int y)
 {
-    int occupied;
-    struct link* currentLink;
+    struct point* currentPoint;
 
-    while (occupied)
+    /* Check if point is in the level. */
+    if (levels[level][snake->y][snake->x] == 1)
+        return 3;
+
+    /* Check if point is in the body of the snake. */
+    for (currentPoint = snake->next; currentPoint->next != NULL; currentPoint = currentPoint->next)
     {
-        occupied = 0;
-
-        cookie.x = rand() % HOR_SIZE;
-        cookie.y = rand() % VER_SIZE;
-
-        for (currentLink = snake; currentLink->next != NULL; currentLink = currentLink->next)
+        if (x == currentPoint->x && y == currentPoint->y)
         {
-            if (cookie.x == currentLink->x && cookie.y == currentLink->y)
-            {
-                occupied = 1;
-                break;
-            }
+            return 2;
         }
     }
-}
 
-static int collision(void)
-{
-    struct link* currentLink;
-
-    /* Check if the snake has collided with itself. */
-    for (currentLink = snake->next; currentLink->next != NULL; currentLink = currentLink->next)
-    {
-        if (snake->x == currentLink->x && snake->y == currentLink->y)
-        {
-            return 1;
-        }
-    }
+    /* Check if point is the head of the snake. */
+    if (snake->x == x && snake->y == y)
+        return 1;
 
     return 0;
+}
+
+/* Move the cookie out of the way. */
+static void moveCookie(struct point* cookie)
+{
+    while (occupied(cookie->x, cookie->y))
+    {
+        cookie->x = rand() % HOR_SIZE;
+        cookie->y = rand() % VER_SIZE;
+    }
 }
 
 static void initLevel(int level)
 {
     int i;
+    int x;
+    int y;
+    struct point* currentCookie;
 
     /* Spawn a brand new snake. It's only a head for now. */
-    snake = malloc(sizeof(struct link));
-    snake->x = 3;
-    snake->y = 6;
+    snake->x = HOR_SIZE / 2;
+    snake->y = VER_SIZE / 2;
     snake->next = NULL;
 
     /* Let the snake grow for a while. */
     for (i = 1; i < STARTING_LENGTH; ++i)
-        growSnake();
+        addPoint(snake);
 
-    /* Drop a cookie in there. */
+    /* Drop some cookies in there. */
+    cookie->x = -1;
+    cookie->y = -1;
+    cookie->next = NULL;
+
+    for (y = 0; y < VER_SIZE; ++y)
+    {
+        for (x = 0; x < HOR_SIZE; ++x)
+            if (levels[level][y][x] == 2)
+            {
+                currentCookie = addPoint(cookie);
+                currentCookie->x = x;
+                currentCookie->y = y;
+            }
+    }
+
+    cookies = 0;
     srand(level);
-    moveCookie();
-    cookie.goodness = 3;
 }
 
 static void die(void)
@@ -167,19 +228,27 @@ static void die(void)
 static void interact(void)
 {
     int i;
+    struct point* currentCookie;
 
     moveSnake();
 
-    if (collision())
+    if (occupied(snake->x, snake->y) > 1)
         die();
 
-    if (snake->x == cookie.x && snake->y == cookie.y)
+    for (currentCookie = cookie; currentCookie != NULL; currentCookie = currentCookie->next)
     {
-        /* Convert cookie to snake. */
-        for (i = 1; i < cookie.goodness; ++i)
-            growSnake();
+        if (currentCookie->x == snake->x && currentCookie->y == snake->y)
+        {
+            /* Go to the next level when goal is reached. */
+            if (++cookies >= GOAL)
+                initLevel(++level);
 
-        moveCookie();
+            /* Convert cookie to snake. */
+            for (i = 1; i < COOKIE_GOODNESS; ++i)
+                addPoint(snake);
+
+            moveCookie(currentCookie);
+        }
     }
 }
 
@@ -201,15 +270,24 @@ static void drawSquare(int x, int y)
 
 static void drawLevel(level)
 {
+    int x;
+    int y;
+
+    for (y = 0; y < VER_SIZE; ++y)
+    {
+        for (x = 0; x < HOR_SIZE; ++x)
+            if (levels[level][y][x] == 1)
+                drawSquare(x, y);
+    }
 }
 
-static void drawSnake(void)
+static void drawSquares(struct point* head)
 {
-    struct link* currentLink;
+    struct point* currentPoint;
 
-    for (currentLink = snake; currentLink != NULL; currentLink = currentLink->next)
+    for (currentPoint = head; currentPoint != NULL; currentPoint = currentPoint->next)
     {
-        drawSquare(currentLink->x, currentLink->y);
+        drawSquare(currentPoint->x, currentPoint->y);
     }
 }
 
@@ -221,10 +299,10 @@ static void display(void)
     drawLevel(level);
 
     glColor4f(0.2, 0.7, 1.0, 0.8);
-    drawSnake();
+    drawSquares(snake);
 
     glColor4f(0.7, 0.2, 1.0, 0.8);
-    drawSquare(cookie.x, cookie.y);
+    drawSquares(cookie);
 
     glutSwapBuffers();
 }
@@ -242,19 +320,30 @@ static void reshape(int w, int h)
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     if (w <= h)
-        gluOrtho2D (0.0, 1.0, 0.0, 1.0*(GLfloat)h/(GLfloat)w);
+        gluOrtho2D (0, 1, (GLfloat)h/(GLfloat)w, 0);
     else
-        gluOrtho2D (0.0, 1.0*(GLfloat)w/(GLfloat)h, 0.0, 1.0);
+        gluOrtho2D (0, (GLfloat)w/(GLfloat)h, 1, 0);
 }
 
 static void keyboard(unsigned char key, int x, int y)
 {
+    /* Level cheats. */
+    if      (key == 110)
+        initLevel(++level);
+    else if (key == 112)
+        initLevel(--level);
+
+    /* Grow cheat. */
+    if (key == 111)
+        addPoint(snake);
+
     if (key == 27)
     {
 #ifndef WINDOWED
         glutLeaveGameMode();
 #endif
         free(snake);
+        free(cookie);
         exit(0);
     }
 }
@@ -263,7 +352,7 @@ static void special(int key, int x, int y)
 {
     int newDirection = direction;
 
-    if (key == GLUT_KEY_RIGHT && direction > 1)
+    if      (key == GLUT_KEY_RIGHT && direction > 1)
         newDirection = 0;
     else if (key == GLUT_KEY_LEFT  && direction > 1)
         newDirection = 1;
@@ -325,6 +414,9 @@ int main(int argc, char** argv)
     glutReshapeFunc(reshape);
     glutKeyboardFunc(keyboard);
     glutSpecialFunc(special);
+
+    snake = malloc(sizeof(struct point));
+    cookie = malloc(sizeof(struct point));
 
     initLevel(level);
     animate(0);
