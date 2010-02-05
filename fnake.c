@@ -17,8 +17,7 @@
 
 #define STARTING_LENGTH 3
 
-float last = 0.0;
-
+/* Where the snake is going. */
 int direction = 0;
 
 struct link
@@ -30,7 +29,17 @@ struct link
 
 struct link* snake;
 
-/* Set up a window, or go into fullscreen. */
+/* The snake eats cookies. Yum. */
+struct cookie
+{
+    int x;
+    int y;
+    int goodness;
+};
+
+struct cookie cookie;
+
+/* Set up a window, or go into fullscreen mode. */
 static int init(int argc, char** argv, int w, int h, int depth)
 {
 #ifndef WINDOWED
@@ -63,33 +72,30 @@ static int init(int argc, char** argv, int w, int h, int depth)
     return 0;
 }
 
+static void drawSquare(int x, int y)
+{
+    glPushMatrix();
+    glScalef(1/(float)HOR_SIZE, 1/(float)VER_SIZE, 1.0);
+    glTranslatef(x, y, 0);
+    glScalef(0.8, 0.8, 1.0);
+    glBegin(GL_QUADS);
+        glVertex3f( 0,  0, 0);
+        glVertex3f( 1,  0, 0);
+        glVertex3f( 1,  1, 0);
+        glVertex3f( 0,  1, 0);
+    glEnd();
+    glPopMatrix();
+}
+
 static void drawSnake()
 {
     struct link* currentLink;
 
     for (currentLink = snake; currentLink != NULL; currentLink = currentLink->next)
     {
-        glPushMatrix();
         glColor4f(0.2, 0.7, 1.0, 0.8);
-        glScalef(1/(float)HOR_SIZE, 1/(float)VER_SIZE, 1.0);
-        glTranslatef(currentLink->x, currentLink->y, 0);
-        glScalef(0.8, 0.8, 1.0);
-        glBegin(GL_QUADS);
-            glVertex3f( 0,  0, 0);
-            glVertex3f( 1,  0, 0);
-            glVertex3f( 1,  1, 0);
-            glVertex3f( 0,  1, 0);
-        glEnd();
-        glPopMatrix();
+        drawSquare(currentLink->x, currentLink->y);
     }
-}
-
-static int placeLink(struct link* newLink, float x, float y)
-{
-    newLink->x = x;
-    newLink->y = y;
-
-    return 0;
 }
 
 /* Add another link to the snake. */
@@ -156,13 +162,48 @@ static void display(void)
 {
     glClear(GL_COLOR_BUFFER_BIT);
     drawSnake();
+    glColor4f(0.7, 0.2, 1.0, 0.8);
+    drawSquare(cookie.x, cookie.y);
     glutSwapBuffers();
+}
+
+static void interact(void)
+{
+    int i;
+    int collision;
+    struct link* currentLink;
+
+    moveSnake();
+
+    if (snake->x == cookie.x && snake->y == cookie.y)
+    {
+        for (i = 1; i < cookie.goodness; ++i)
+            growSnake();
+
+        /* Move the cookie out of the way. */
+        while (collision)
+        {
+            collision = 0;
+
+            cookie.x = rand() % HOR_SIZE;
+            cookie.y = rand() % VER_SIZE;
+
+            for (currentLink = snake; currentLink->next != NULL; currentLink = currentLink->next)
+            {
+                if (cookie.x == currentLink->x && cookie.y == currentLink->y)
+                {
+                    collision = 1;
+                    break;
+                }
+            }
+        }
+    }
 }
 
 static void animate(int value)
 {
     glutTimerFunc(FRAME_LENGTH, animate, 0);
-    moveSnake();
+    interact();
     display();
 }
 
@@ -175,7 +216,6 @@ static void reshape(int w, int h)
         gluOrtho2D (0.0, 1.0, 0.0, 1.0*(GLfloat)h/(GLfloat)w);
     else
         gluOrtho2D (0.0, 1.0*(GLfloat)w/(GLfloat)h, 0.0, 1.0);
-
 }
 
 static void keyboard(unsigned char key, int x, int y)
@@ -207,7 +247,7 @@ static void special(int key, int x, int y)
     if (newDirection != direction)
     {
         direction = newDirection;
-        moveSnake();
+        interact();
         display();
     }
 }
@@ -222,19 +262,29 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    /* Spawn a brand new snake. It's only a head for now. */
     snake = malloc(sizeof(struct link));
     snake->x = 3;
     snake->y = 6;
     snake->next = NULL;
 
-    for (i = 1; i < STARTING_LENGTH; growSnake(), ++i);
+    /* Let the snake grow for a while. */
+    for (i = 1; i < STARTING_LENGTH; ++i)
+        growSnake();
+
+    /* Drop a cookie in there. */
+    srand(1);
+
+    cookie.x = 10;
+    cookie.y = 18;
+    cookie.goodness = 3;
 
     glutDisplayFunc(display);
-    /*glutIdleFunc(idle);*/
-    animate(0);
     glutReshapeFunc(reshape);
     glutKeyboardFunc(keyboard);
     glutSpecialFunc(special);
+
+    animate(0);
 
     glutMainLoop();
 
