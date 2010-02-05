@@ -4,16 +4,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-/*#define WINDOWED*/
+#define WINDOWED
 #define WIDTH 640
 #define HEIGHT 480
 #define DEPTH 32
+
+#define FRAME_LENGTH 100
 
 /* World size */
 #define HOR_SIZE 24
 #define VER_SIZE 24
 
-#define FRAME_LENGTH 100
+#define STARTING_LENGTH 3
 
 float last = 0.0;
 
@@ -71,7 +73,7 @@ static void drawSnake()
         glColor4f(0.2, 0.7, 1.0, 0.8);
         glScalef(1/(float)HOR_SIZE, 1/(float)VER_SIZE, 1.0);
         glTranslatef(currentLink->x, currentLink->y, 0);
-        glScalef(0.9, 0.9, 1.0);
+        glScalef(0.8, 0.8, 1.0);
         glBegin(GL_QUADS);
             glVertex3f( 0,  0, 0);
             glVertex3f( 1,  0, 0);
@@ -88,6 +90,21 @@ static int placeLink(struct link* newLink, float x, float y)
     newLink->y = y;
 
     return 0;
+}
+
+/* Add another link to the snake. */
+static void growSnake(void)
+{
+    struct link* currentLink;
+    struct link* newLink;
+
+    /* Go through the snake. Stop at the tail. */
+    for (currentLink = snake; currentLink->next != NULL; currentLink = currentLink->next);
+
+    /* Make a new tail. */
+    newLink = malloc(sizeof(struct link));
+    *newLink = *currentLink;
+    currentLink->next = newLink;
 }
 
 static void moveSnake(void)
@@ -197,12 +214,7 @@ static void special(int key, int x, int y)
 
 int main(int argc, char** argv)
 {
-    struct link link2;
-    struct link link3;
-    struct link link4;
-    struct link link5;
-
-    snake = malloc(sizeof(struct link));
+    int i;
 
     if (init(argc, argv, WIDTH, HEIGHT, DEPTH))
     {
@@ -210,16 +222,12 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    placeLink(snake, 3.0, 2.0);
-    snake->next = &link2;
-    placeLink(&link2, 4.0, 2.0);
-    link2.next = &link3;
-    placeLink(&link3, 5.0, 2.0);
-    link3.next = &link4;
-    placeLink(&link4, 6.0, 2.0);
-    link4.next = &link5;
-    placeLink(&link5, 7.0, 2.0);
-    link5.next = NULL;
+    snake = malloc(sizeof(struct link));
+    snake->x = 3;
+    snake->y = 6;
+    snake->next = NULL;
+
+    for (i = 1; i < STARTING_LENGTH; growSnake(), ++i);
 
     glutDisplayFunc(display);
     /*glutIdleFunc(idle);*/
