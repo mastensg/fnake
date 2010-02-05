@@ -4,14 +4,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define WINDOWED
+/*#define WINDOWED*/
 #define WIDTH 640
 #define HEIGHT 480
 #define DEPTH 32
 
+#define FRAME_LENGTH 100
+
 float last = 0.0;
 
-int direction = 0;
+int direction = 1;
 
 struct link
 {
@@ -20,7 +22,7 @@ struct link
     struct link* next;
 };
 
-struct link snake;
+struct link* snake;
 
 /* Set up a window, or go into fullscreen. */
 static int init(int argc, char** argv, int w, int h, int depth)
@@ -55,14 +57,6 @@ static int init(int argc, char** argv, int w, int h, int depth)
     return 0;
 }
 
-static int placeLink(struct link* newLink, float x, float y)
-{
-    newLink->x = x;
-    newLink->y = y;
-
-    return 0;
-}
-
 static void drawLink(void)
 {
     glScalef(0.9, 0.9, 1.0);
@@ -89,32 +83,44 @@ static void drawSnake(struct link* invisibleSnake)
     }
 }
 
-static void moveSnake(struct link* invisibleSnake, int invisibleDirection)
+static int placeLink(struct link* newLink, float x, float y)
+{
+    newLink->x = x;
+    newLink->y = y;
+
+    return 0;
+}
+
+static void moveSnake(void)
 {
     struct link* currentLink;
 
-    switch (invisibleDirection)
+    for (currentLink = snake; currentLink->next->next != NULL; currentLink = currentLink->next);
+
+    currentLink->next->next = snake;
+    snake = currentLink->next;
+    currentLink->next = NULL;
+
+    snake->x = snake->next->x;
+    snake->y = snake->next->y;
+
+    switch (direction)
     {
         case 0:
-            invisibleSnake->x += 1.0;
+            snake->x += 1.0;
             break;
 
         case 1:
-            invisibleSnake->y += 1.0;
+            snake->x -= 1.0;
             break;
 
         case 2:
-            invisibleSnake->x -= 1.0;
+            snake->y += 1.0;
             break;
 
         case 3:
-            invisibleSnake->y -= 1.0;
+            snake->y -= 1.0;
             break;
-    }
-
-    for (currentLink = invisibleSnake; currentLink->next != NULL; currentLink = currentLink->next)
-    {
-        placeLink(invisibleSnake->next, invisibleSnake->x, invisibleSnake->y);
     }
 }
 
@@ -127,10 +133,21 @@ static void display(void)
 
     glClear(GL_COLOR_BUFFER_BIT);
 
-    moveSnake(&snake, direction);
-    drawSnake(&snake);
+    drawSnake(snake);
 
     glutSwapBuffers();
+}
+
+static void animate(int value)
+{
+    glutTimerFunc(FRAME_LENGTH, animate, 0);
+    moveSnake();
+    display();
+}
+
+static void idle(void)
+{
+    animate(0);
 }
 
 static void reshape(int w, int h)
@@ -152,29 +169,43 @@ static void keyboard(unsigned char key, int x, int y)
 #ifndef WINDOWED
         glutLeaveGameMode();
 #endif
+        free(snake);
         exit(0);
     }
 }
 
 static void special(int key, int x, int y)
 {
-    if (key == GLUT_KEY_LEFT)
-        direction = 2;
+    int newDirection = direction;
 
-    if (key == GLUT_KEY_UP)
-        direction = 1;
+    if (key == GLUT_KEY_RIGHT && direction > 1)
+        newDirection = 0;
 
-    if (key == GLUT_KEY_RIGHT)
-        direction = 0;
+    if (key == GLUT_KEY_LEFT  && direction > 1)
+        newDirection = 1;
 
-    if (key == GLUT_KEY_DOWN)
-        direction = 3;
+    if (key == GLUT_KEY_UP    && direction <= 1)
+        newDirection = 2;
+
+    if (key == GLUT_KEY_DOWN  && direction <= 1)
+        newDirection = 3;
+
+    if (newDirection != direction)
+    {
+        direction = newDirection;
+        moveSnake();
+        display();
+    }
 }
 
 int main(int argc, char** argv)
 {
     struct link link2;
     struct link link3;
+    struct link link4;
+    struct link link5;
+
+    snake = malloc(sizeof(struct link));
 
     if (init(argc, argv, WIDTH, HEIGHT, DEPTH))
     {
@@ -182,15 +213,20 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    placeLink(&snake, 3.0, 2.0);
-    snake.next = &link2;
+    placeLink(snake, 3.0, 2.0);
+    snake->next = &link2;
     placeLink(&link2, 4.0, 2.0);
     link2.next = &link3;
     placeLink(&link3, 5.0, 2.0);
-    link3.next = NULL;
+    link3.next = &link4;
+    placeLink(&link4, 6.0, 2.0);
+    link4.next = &link5;
+    placeLink(&link5, 7.0, 2.0);
+    link5.next = NULL;
 
     glutDisplayFunc(display);
-    glutIdleFunc(display);
+    /*glutIdleFunc(idle);*/
+    animate(0);
     glutReshapeFunc(reshape);
     glutKeyboardFunc(keyboard);
     glutSpecialFunc(special);
