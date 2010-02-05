@@ -9,11 +9,15 @@
 #define HEIGHT 480
 #define DEPTH 32
 
+/* World size */
+#define HOR_SIZE 24
+#define VER_SIZE 24
+
 #define FRAME_LENGTH 100
 
 float last = 0.0;
 
-int direction = 1;
+int direction = 0;
 
 struct link
 {
@@ -57,15 +61,15 @@ static int init(int argc, char** argv, int w, int h, int depth)
     return 0;
 }
 
-static void drawSnake(struct link* invisibleSnake)
+static void drawSnake()
 {
     struct link* currentLink;
 
-    for (currentLink = invisibleSnake; currentLink != NULL; currentLink = currentLink->next)
+    for (currentLink = snake; currentLink != NULL; currentLink = currentLink->next)
     {
         glPushMatrix();
         glColor4f(0.2, 0.7, 1.0, 0.8);
-        glScalef(0.025, 0.025, 1.0);
+        glScalef(1/(float)HOR_SIZE, 1/(float)VER_SIZE, 1.0);
         glTranslatef(currentLink->x, currentLink->y, 0);
         glScalef(0.9, 0.9, 1.0);
         glBegin(GL_QUADS);
@@ -121,15 +125,8 @@ static void moveSnake(void)
 
 static void display(void)
 {
-    float t  = glutGet(GLUT_ELAPSED_TIME);
-    float dt = (t - last)/100;
-
-    last = t;
-
     glClear(GL_COLOR_BUFFER_BIT);
-
-    drawSnake(snake);
-
+    drawSnake();
     glutSwapBuffers();
 }
 
@@ -138,11 +135,6 @@ static void animate(int value)
     glutTimerFunc(FRAME_LENGTH, animate, 0);
     moveSnake();
     display();
-}
-
-static void idle(void)
-{
-    animate(0);
 }
 
 static void reshape(int w, int h)
