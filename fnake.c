@@ -17,8 +17,14 @@
 #define VER_SIZE 24
 
 #define STARTING_LENGTH 3
+
+/* How much the snake grows when eating a cookie. */
 #define COOKIE_GOODNESS 8
+
+/* How many cookies the snake must eat to go on to the next level. */
 #define GOAL 10
+
+/* Number of milliseconds to wait between interactions. */
 #define WAIT 100
 
 int direction;
@@ -413,19 +419,14 @@ static void interact(void)
     }
 }
 
-/* Set up a window, or go into fullscreen mode. */
-static void drawSquare(int x, int y)
+static void drawSquare(int x, int y, int z)
 {
     glPushMatrix();
-    glScalef(1/(float)HOR_SIZE, 1/(float)VER_SIZE, 1.0);
-    glTranslatef(x, y, 0);
-    glScalef(0.8, 0.8, 1.0);
-    glBegin(GL_QUADS);
-        glVertex3f( 0,  0, 0);
-        glVertex3f( 1,  0, 0);
-        glVertex3f( 1,  1, 0);
-        glVertex3f( 0,  1, 0);
-    glEnd();
+    gluLookAt(0.5, 2.0, 2.0, 0.5, 0.5, 0.5, 0.0, 1.0, 0.0);
+    glScalef(1/(float)HOR_SIZE, 1.0/HOR_SIZE, 1/(float)VER_SIZE);
+    glTranslatef(x, z, y);
+    glScalef(0.9, 0.9, 0.9);
+    glutSolidCube(1.0);
     glPopMatrix();
 }
 
@@ -438,17 +439,17 @@ static void drawLevel(level)
     {
         for (x = 0; x < HOR_SIZE; ++x)
             if (levels[level][y][x] == 1)
-                drawSquare(x, y);
+                drawSquare(x, y, 1);
     }
 }
 
-static void drawSquares(struct point* head)
+static void drawSquares(struct point* head, int z)
 {
     struct point* currentPoint;
 
     for (currentPoint = head; currentPoint != NULL; currentPoint = currentPoint->next)
     {
-        drawSquare(currentPoint->x, currentPoint->y);
+        drawSquare(currentPoint->x, currentPoint->y, z);
     }
 }
 
@@ -458,7 +459,7 @@ static void display(void)
     int y;
     float t = glutGet(GLUT_ELAPSED_TIME);
 
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     for (y = 0; y < VER_SIZE; ++y)
     {
@@ -468,7 +469,7 @@ static void display(void)
                     0.0,
                     0.75 + 0.225 * sin((float)x*8/HOR_SIZE + t/2000) + 0.125 * cos((float)y*8/VER_SIZE + t/2000),
                     1.0);
-            drawSquare(x, y);
+            drawSquare(x, y, 0);
         }
     }
 
@@ -476,10 +477,10 @@ static void display(void)
     drawLevel(level);
 
     glColor4f(1.0, 1.0, 1.0, 1.0);
-    drawSquares(snake);
+    drawSquares(snake, 1);
 
     glColor4f(0.2, 0.7, 1.0, 1.0);
-    drawSquares(cookie);
+    drawSquares(cookie, 1);
 
     glutSwapBuffers();
 }
@@ -503,13 +504,28 @@ static void idle(void)
 
 static void reshape(int w, int h)
 {
-    glViewport(0, 0, (GLsizei) w, (GLsizei) h);
+    float ratio;
+
+    if (h == 0) {
+        h = 1;
+    }
+
+    ratio = 1.0 * w/h;
+
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    if (w <= h)
-        gluOrtho2D (0, 1, (GLfloat)h/(GLfloat)w, 0);
-    else
-        gluOrtho2D (0, (GLfloat)w/(GLfloat)h, 1, 0);
+    glViewport(0, 0, w, h);
+    gluPerspective(45, ratio, 1, 1000);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    /*glViewport(0, 0, (GLsizei) w, (GLsizei) h);*/
+    /*glMatrixMode(GL_PROJECTION);*/
+    /*glLoadIdentity();*/
+    /*if (w <= h)*/
+    /*gluOrtho2D (0, 1, (GLfloat)h/(GLfloat)w, 0);*/
+    /*else*/
+    /*gluOrtho2D (0, (GLfloat)w/(GLfloat)h, 1, 0);*/
 }
 
 static void keyboard(unsigned char key, int x, int y)
@@ -559,6 +575,8 @@ static void special(int key, int x, int y)
 
 static int init(int argc, char** argv, int w, int h, int depth)
 {
+    float light_position[] = {0, 1, 0.5, 0};
+
 #ifndef WINDOWED
     char modeString[16];
 #endif
@@ -568,10 +586,10 @@ static int init(int argc, char** argv, int w, int h, int depth)
 #ifdef WINDOWED
     glutInitWindowPosition(0, 0);
     glutInitWindowSize(w, h);
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+    glutInitDisplayMode(GLUT_DEPTH | GLUT_DOUBLE | GLUT_RGBA);
     glutCreateWindow(argv[0]);
 #else
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+    glutInitDisplayMode(GLUT_DEPTH | GLUT_DOUBLE | GLUT_RGBA);
 
     if (snprintf(modeString, sizeof(modeString), "%dx%d:%d@85", w, h, depth) < 0)
         return -1;
@@ -581,10 +599,17 @@ static int init(int argc, char** argv, int w, int h, int depth)
     glutSetCursor(GLUT_CURSOR_NONE);
 #endif
 
-    glEnable(GL_BLEND);
-    glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glShadeModel (GL_FLAT);
     glClearColor(0, 0, 0, 0);
+    glShadeModel(GL_SMOOTH);
+    glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE);
+    glEnable(GL_COLOR_MATERIAL);
+    glLightfv(GL_LIGHT0, GL_POSITION, light_position);
+    glEnable(GL_LIGHTING);
+    glEnable(GL_LIGHT0);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glEnable(GL_AUTO_NORMAL);
+    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 
     return 0;
 }
