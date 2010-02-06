@@ -27,6 +27,9 @@
 /* Number of milliseconds to wait between interactions. */
 #define WAIT 100
 
+/* Number of clouds. */
+#define CLOUDS 16
+
 int direction;
 int cookies;
 int level;
@@ -40,8 +43,19 @@ struct point
     struct point* next;
 };
 
+struct cloud
+{
+    int w;
+    int h;
+    float vx;
+    float vy;
+    float period;
+    struct cloud* next;
+};
+
 struct point* snake;
 struct point* cookie;
+struct cloud* cloud;
 
 int levels[8][24][24] = {
     {
@@ -271,6 +285,28 @@ static struct point* addPoint(struct point* head)
     return newPoint;
 }
 
+static struct cloud* addCloud(struct cloud* head)
+{
+    struct cloud* currentCloud;
+    struct cloud* newCloud;
+
+    /* Go through the list. Stop at the tail. */
+    for (currentCloud = head; currentCloud->next != NULL; currentCloud = currentCloud->next);
+
+    /* Make a new tail. */
+    newCloud = malloc(sizeof(struct cloud));
+    *newCloud = *currentCloud;
+    currentCloud->next = newCloud;
+
+    newCloud->w = 1 + rand() % 12;
+    newCloud->h = 1 + rand() % 12;
+    newCloud->vx = -0.05 + 100.0/(1 + rand() % 1000);
+    newCloud->vy = -0.05 + 100.0/(1 + rand() % 1000);
+    newCloud->period = rand();
+
+    return newCloud;
+}
+
 static void moveSnake(void)
 {
     struct point* currentLink;
@@ -355,7 +391,7 @@ static void initLevel(int level)
     int i;
     int x;
     int y;
-    struct point* currentCookie;
+    struct point* currentPoint;
 
     /* Spawn a brand new snake. It's only a head for now. */
     snake->x = HOR_SIZE / 2;
@@ -376,15 +412,28 @@ static void initLevel(int level)
         for (x = 0; x < HOR_SIZE; ++x)
             if (levels[level][y][x] == 2)
             {
-                currentCookie = addPoint(cookie);
-                currentCookie->x = x;
-                currentCookie->y = y;
+                currentPoint = addPoint(cookie);
+                currentPoint->x = x;
+                currentPoint->y = y;
             }
     }
 
+    srand(level);
+
+    /* Spawn a brand new cloud. */
+    cloud->w = 1 + rand() % 12;
+    cloud->h = 1 + rand() % 12;
+    cloud->vx = -0.05 + 100.0/(1 + rand() % 1000);
+    cloud->vy = -0.05 + 100.0/(1 + rand() % 1000);
+    cloud->period = rand();
+    cloud->next = NULL;
+
+    /* Spawn some more clouds. */
+    for (i = 1; i < CLOUDS; ++i)
+        addCloud(cloud);
+
     cookies = 0;
     direction = 0;
-    srand(level);
 }
 
 static void interact(void)
@@ -421,17 +470,36 @@ static void display(void)
     float z;
     float t = glutGet(GLUT_ELAPSED_TIME);
     struct point* currentPoint;
+    struct cloud* currentCloud;
     float diffuse[] = {0, 0, 0, 1};
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glPushMatrix();
     gluLookAt(0.5, 2.0, 2.0, 0.5, 0.0, 0.5, 0.0, 1.0, 0.0);
-    glScalef(1/(float)HOR_SIZE, 1.0/HOR_SIZE, 1/(float)VER_SIZE);
+
+    /* Draw clouds. */
+    diffuse[0] = 1;
+    diffuse[1] = 1;
+    diffuse[2] = 1;
+    glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, diffuse);
+    glTranslatef(0, -0.25, 0);
+    for (currentCloud = cloud; currentCloud != NULL; currentCloud = currentCloud->next)
+    {
+        glPushMatrix();
+        glTranslatef(2 * cos(currentCloud->vx * t/10000 + currentCloud->period/1000.0),
+                     0,
+                     2 * sin(currentCloud->vy * t/10000 + currentCloud->period/1000.0));
+        glScalef(    currentCloud->w/10.0, 1/10.0, currentCloud->h/10.0);
+        glutSolidSphere(1.0, 16, 16);
+        glPopMatrix();
+    }
 
     /* Draw snake. */
     diffuse[0] = 0.0;
     diffuse[1] = 0.25 /*+ 0.0625 * sin(z*64)*/;
     diffuse[2] = 0.0;
+    glTranslatef(0, 0.25, 0);
+    glScalef(1/(float)HOR_SIZE, 1.0/HOR_SIZE, 1/(float)VER_SIZE);
     glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, diffuse);
     for (currentPoint = snake, z = 0; currentPoint != NULL; currentPoint = currentPoint->next, ++z)
     {
@@ -445,7 +513,7 @@ static void display(void)
     diffuse[1] = 0;
     diffuse[2] = 0;
     glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, diffuse);
-    for (currentPoint = cookie; currentPoint != NULL; currentPoint = currentPoint->next)
+    for (currentPoint = cookie->next; currentPoint != NULL; currentPoint = currentPoint->next)
     {
         glTranslatef( currentPoint->x, 0,  currentPoint->y);
         glTranslatef(0, 0.25, 0);
@@ -470,7 +538,7 @@ static void display(void)
             else
             {
                 z = 1;
-                diffuse[3] = 1.0;
+                diffuse[3] = 0.75;
             }
 
             diffuse[0] = 0.125 + 0.125 * sin((float)x*8/HOR_SIZE + t/2000) + 0.125 * cos((float)y*8/VER_SIZE + t/2000),
@@ -544,6 +612,7 @@ static void keyboard(unsigned char key, int x, int y)
 #endif
         free(snake);
         free(cookie);
+        free(cloud);
         exit(0);
     }
 }
@@ -608,12 +677,8 @@ static int init(int argc, char** argv, int w, int h, int depth)
     glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse);
     glLightfv(GL_LIGHT0, GL_POSITION, light_position);
 
-    /*glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse);*/
-    /*glMaterialfv(GL_FRONT, GL_SPECULAR, specular);*/
-    /*glMaterialf(GL_FRONT, GL_SHININESS, 25.0);*/
-
     glEnable(GL_DEPTH_TEST);
-    glShadeModel(GL_SMOOTH);
+    glShadeModel(GL_FLAT);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -638,8 +703,9 @@ int main(int argc, char** argv)
     glutReshapeFunc(reshape);
     glutSpecialFunc(special);
 
-    snake = malloc(sizeof(struct point));
+    snake  = malloc(sizeof(struct point));
     cookie = malloc(sizeof(struct point));
+    cloud = malloc(sizeof(struct cloud));
 
     level = 0;
     last  = 0;
