@@ -3,9 +3,10 @@
 #include <GL/glut.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 
-#include "levels.h"
+#include <magick/ImageMagick.h>
 
 #define WINDOWED
 #define WIDTH 640
@@ -14,17 +15,10 @@
 
 #define FRAME_LENGTH 10
 
-/* World size */
-#define HOR_SIZE 24
-#define VER_SIZE 24
-
 #define STARTING_LENGTH 3
 
 /* How much the snake grows when eating a cookie. */
-#define COOKIE_GOODNESS 8
-
-/* How many cookies the snake must eat to go on to the next level. */
-#define GOAL 10
+#define COOKIE_GOODNESS 1
 
 /* Number of milliseconds to wait between interactions. */
 #define WAIT 100
@@ -32,12 +26,15 @@
 /* Number of clouds. */
 #define CLOUDS 16
 
-int direction;
 int cookies;
-int levelx;
-int levely;
+int direction;
+int height;
 int last;
 int wait;
+int width;
+
+int* world;
+#define getworld(x,y) world[(y) * width + (x)]
 
 struct point
 {
@@ -59,6 +56,64 @@ struct cloud
 struct point* snake;
 struct point* cookie;
 struct cloud* cloud;
+
+struct image {
+    int width, height, stride;
+    unsigned char *data;
+};
+
+struct image *load_image(const char *filename)
+{
+    struct image *img;
+    const PixelPacket *pixels;
+    int i;
+
+    Image *magickimg;
+    ImageInfo *imageinfo;
+    ExceptionInfo exception;
+
+    InitializeMagick(0);
+    GetExceptionInfo(&exception);
+    imageinfo = CloneImageInfo(0);
+
+    strcpy(imageinfo->filename, filename);
+    magickimg = ReadImage(imageinfo, &exception);
+
+    if (!magickimg) {
+        DestroyMagick();
+        return 0;
+    }
+
+    img = malloc(sizeof(struct image));
+    img->width = magickimg->columns;
+    img->height = magickimg->rows;
+    img->stride = img->width * 4;
+    img->data = malloc(img->stride * img->height);
+
+    pixels = AcquireImagePixels(magickimg, 0, 0,
+                                img->width, img->height, &exception);
+
+    if (!pixels) {
+        free(img);
+        img = 0;
+        goto out;
+    }
+
+    /* Imagemagick may use > 8 bits per channel */
+    for (i=0; i < img->width * img->height; ++i) {
+        img->data[i*4 + 0] = pixels[i].red >> (QuantumDepth - 8);
+        img->data[i*4 + 1] = pixels[i].green >> (QuantumDepth - 8);
+        img->data[i*4 + 2] = pixels[i].blue >> (QuantumDepth - 8);
+        img->data[i*4 + 3] = pixels[i].opacity >> (QuantumDepth - 8);
+    }
+
+out:
+    DestroyImageInfo(imageinfo);
+    DestroyImage(magickimg);
+    DestroyMagick();
+
+    return img;
+}
 
 /* Add another point to a list. */
 static struct point* addPoint(struct point* head)
@@ -99,22 +154,48 @@ static struct cloud* addCloud(struct cloud* head)
     return newCloud;
 }
 
-static void initLevel(int levelx, int levely)
+static void initWorld(const char* filename)
 {
     int i;
     int x;
     int y;
     struct point* currentPoint;
+    struct image* image;
+
+    /* Read the world. */
+    image = load_image(filename);
+
+    world = calloc(image->width * image->height, sizeof(*world));
+    width = image->width;
+    height = image->height;
+
+    for (x = 0; x < image->width; ++x)
+        for (y = 0; y < image->height; ++y) {
+            i = y * image->stride + x * 4;
+            if (*(image->data + i) < 127)
+                getworld(x,y) = 1;
+            else
+                getworld(x,y) = 0;
+        }
+
+    /* Spawn a brand new snake. It's only a head for now. */
+    snake->x = width / 2;
+    snake->y = height / 2;
+    snake->next = NULL;
+
+    /* Let the snake grow for a while. */
+    for (i = 1; i < STARTING_LENGTH; ++i)
+        addPoint(snake);
 
     /* Drop some cookies in there. */
     cookie->x = -1;
     cookie->y = -1;
     cookie->next = NULL;
 
-    for (y = 0; y < VER_SIZE; ++y)
+    for (y = 0; y < height; ++y)
     {
-        for (x = 0; x < HOR_SIZE; ++x)
-            if (levels[levelx][levely][y][x] == 2)
+        for (x = 0; x < width; ++x)
+            if (getworld(x,y) == 2)
             {
                 currentPoint = addPoint(cookie);
                 currentPoint->x = x;
@@ -122,7 +203,7 @@ static void initLevel(int levelx, int levely)
             }
     }
 
-    srand(levelx*levely);
+    srand(width*height);
 
     /* Spawn a brand new cloud. */
     cloud->w = 1 + rand() % 12;
@@ -137,6 +218,7 @@ static void initLevel(int levelx, int levely)
         addCloud(cloud);
 
     cookies = 0;
+    direction = 0;
 }
 
 static void moveSnake(void)
@@ -173,34 +255,22 @@ static void moveSnake(void)
             break;
     }
 
-    if (snake->x >= HOR_SIZE)
-    {
+    if (snake->x >= width)
         snake->x = 0;
-        initLevel(++levelx, levely);
-    }
     else if (snake->x < 0)
-    {
-        snake->x = HOR_SIZE - 1;
-        initLevel(--levelx, levely);
-    }
-    else if (snake->y >= VER_SIZE)
-    {
+        snake->x = width - 1;
+    else if (snake->y >= height)
         snake->y = 0;
-        initLevel(levelx, ++levely);
-    }
     else if (snake->y < 0)
-    {
-        snake->y = VER_SIZE - 1;
-        initLevel(levelx, --levely);
-    }
+        snake->y = height - 1;
 }
 
 static int occupied(int x, int y)
 {
     struct point* currentPoint;
 
-    /* Check if point is in the level. */
-    if (levels[levelx][levely][y][x] == 1)
+    /* Check if point is in the world. */
+    if (getworld(x,y) == 1)
         return 3;
 
     /* Check if point is in the body of the snake. */
@@ -224,8 +294,8 @@ static void moveCookie(struct point* cookie)
 {
     while (occupied(cookie->x, cookie->y))
     {
-        cookie->x = rand() % HOR_SIZE;
-        cookie->y = rand() % VER_SIZE;
+        cookie->x = rand() % width;
+        cookie->y = rand() % height;
     }
 }
 
@@ -238,8 +308,14 @@ static void interact(void)
 
     if (occupied(snake->x, snake->y) > 1)
     {
-        snake->x = HOR_SIZE / 2;
-        snake->y = VER_SIZE / 2;
+        /* Spawn a brand new snake. It's only a head for now. */
+        snake->x = width / 2;
+        snake->y = height / 2;
+        snake->next = NULL;
+
+        /* Let the snake grow for a while. */
+        for (i = 1; i < STARTING_LENGTH; ++i)
+            addPoint(snake);
     }
 
     for (currentCookie = cookie; currentCookie != NULL; currentCookie = currentCookie->next)
@@ -273,6 +349,7 @@ static void display(void)
     diffuse[0] = 1;
     diffuse[1] = 1;
     diffuse[2] = 1;
+    diffuse[3] = 0.7;
     glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, diffuse);
     glTranslatef(0, -0.25, 0);
     for (currentCloud = cloud; currentCloud != NULL; currentCloud = currentCloud->next)
@@ -282,7 +359,7 @@ static void display(void)
                      0,
                      2 * sin(currentCloud->vy * t/10000 + currentCloud->period/1000.0));
         glScalef(    currentCloud->w/10.0, 1/10.0, currentCloud->h/10.0);
-        glutSolidSphere(1.0, 16, 16);
+        glutSolidSphere(1.0, 64, 64);
         glPopMatrix();
     }
 
@@ -290,8 +367,9 @@ static void display(void)
     diffuse[0] = 0.0;
     diffuse[1] = 0.25 /*+ 0.0625 * sin(z*64)*/;
     diffuse[2] = 0.0;
+    diffuse[3] = 1.0;
     glTranslatef(0, 0.25, 0);
-    glScalef(1/(float)HOR_SIZE, 1.0/HOR_SIZE, 1/(float)VER_SIZE);
+    glScalef(1/(float)width, 1.0/width, 1/(float)height);
     glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, diffuse);
     for (currentPoint = snake, z = 0; currentPoint != NULL; currentPoint = currentPoint->next, ++z)
     {
@@ -317,14 +395,14 @@ static void display(void)
     }
 
     glTranslatef(0, -1, 0);
-    /* Draw level. */
-    for (y = 0; y < VER_SIZE; ++y)
+    /* Draw world. */
+    for (y = 0; y < height; ++y)
     {
-        for (x = 0; x < HOR_SIZE; ++x)
+        for (x = 0; x < width; ++x)
         {
-            if (levels[levelx][levely][y][x] == 1)
+            if (getworld(x,y) == 1)
             {
-                z = 5 + 0.25 * sin((float)x*32/HOR_SIZE + t/1000) + 0.25 * cos((float)y*32/VER_SIZE + t/1000);
+                z = 5 + 0.25 * sin((float)x*32/width + t/1000) + 0.25 * cos((float)y*32/height + t/1000);
                 diffuse[3] = 0.5;
             }
             else
@@ -333,8 +411,8 @@ static void display(void)
                 diffuse[3] = 0.75;
             }
 
-            diffuse[0] = 0.125 + 0.125 * sin((float)x*8/HOR_SIZE + t/2000) + 0.125 * cos((float)y*8/VER_SIZE + t/2000),
-            diffuse[1] = 0.125 + 0.125 * sin((float)x*8/HOR_SIZE - t/2000) + 0.125 * cos((float)y*8/VER_SIZE - t/2000),
+            diffuse[0] = 0.125 + 0.125 * sin((float)x*8/width + t/2000) + 0.125 * cos((float)y*8/height + t/2000),
+            diffuse[1] = 0.125 + 0.125 * sin((float)x*8/width - t/2000) + 0.125 * cos((float)y*8/height - t/2000),
             diffuse[2] = 0.125;
             glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, diffuse);
 
@@ -387,16 +465,6 @@ static void reshape(int w, int h)
 
 static void keyboard(unsigned char key, int x, int y)
 {
-    /* Level cheats. */
-    if      (key == 104)
-        initLevel(--levelx, levely);
-    else if (key == 106)
-        initLevel(levelx, ++levely);
-    else if (key == 107)
-        initLevel(levelx, --levely);
-    else if (key == 108)
-        initLevel(++levelx, levely);
-
     /* Grow cheat. */
     if (key == 111)
         addPoint(snake);
@@ -406,9 +474,6 @@ static void keyboard(unsigned char key, int x, int y)
 #ifndef WINDOWED
         glutLeaveGameMode();
 #endif
-        free(snake);
-        free(cookie);
-        free(cloud);
         exit(0);
     }
 }
@@ -474,7 +539,7 @@ static int init(int argc, char** argv, int w, int h, int depth)
     glLightfv(GL_LIGHT0, GL_POSITION, light_position);
 
     glEnable(GL_DEPTH_TEST);
-    glShadeModel(GL_FLAT);
+    glShadeModel(GL_SMOOTH);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -487,13 +552,8 @@ static int init(int argc, char** argv, int w, int h, int depth)
 
 int main(int argc, char** argv)
 {
-    int i;
-
     if (init(argc, argv, WIDTH, HEIGHT, DEPTH))
-    {
-        fprintf(stderr, "Couldn't initialize.\n");
         return 1;
-    }
 
     glutDisplayFunc(display);
     glutIdleFunc(idle);
@@ -503,22 +563,10 @@ int main(int argc, char** argv)
 
     snake  = malloc(sizeof(struct point));
     cookie = malloc(sizeof(struct point));
-    cloud = malloc(sizeof(struct cloud));
+    cloud  = malloc(sizeof(struct cloud));
 
-    /* Spawn a brand new snake. It's only a head for now. */
-    snake->x = HOR_SIZE / 2;
-    snake->y = VER_SIZE / 2;
-    snake->next = NULL;
-
-    /* Let the snake grow for a while. */
-    for (i = 1; i < STARTING_LENGTH; ++i)
-        addPoint(snake);
-
-    levelx = 0;
-    levely = 0;
     last  = 0;
-    direction = 0;
-    initLevel(levelx, levely);
+    initWorld("world.png");
 
     glutMainLoop();
 
