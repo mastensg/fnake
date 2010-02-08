@@ -26,15 +26,9 @@
 /* Number of clouds. */
 #define CLOUDS 16
 
-int cookies;
 int direction;
-int height;
 int last;
 int wait;
-int width;
-
-int* world;
-#define getworld(x,y) world[(y) * width + (x)]
 
 struct point
 {
@@ -62,14 +56,17 @@ struct image {
     unsigned char *data;
 };
 
-struct image *load_image(const char *filename)
+struct image* world;
+#define getworld(x,y) (world->data + (y) * world->stride + (x) * 4)
+
+struct image *loadWorld(const char *filename)
 {
-    struct image *img;
-    const PixelPacket *pixels;
+    struct image* img;
+    const PixelPacket* pixels;
     int i;
 
-    Image *magickimg;
-    ImageInfo *imageinfo;
+    Image* magickimg;
+    ImageInfo* imageinfo;
     ExceptionInfo exception;
 
     InitializeMagick(0);
@@ -160,27 +157,13 @@ static void initWorld(const char* filename)
     int x;
     int y;
     struct point* currentPoint;
-    struct image* image;
 
     /* Read the world. */
-    image = load_image(filename);
-
-    world = calloc(image->width * image->height, sizeof(*world));
-    width = image->width;
-    height = image->height;
-
-    for (x = 0; x < image->width; ++x)
-        for (y = 0; y < image->height; ++y) {
-            i = y * image->stride + x * 4;
-            if (*(image->data + i) < 127)
-                getworld(x,y) = 1;
-            else
-                getworld(x,y) = 0;
-        }
+    world = loadWorld(filename);
 
     /* Spawn a brand new snake. It's only a head for now. */
-    snake->x = width / 2;
-    snake->y = height / 2;
+    snake->x = world->width / 2;
+    snake->y = world->height / 2;
     snake->next = NULL;
 
     /* Let the snake grow for a while. */
@@ -192,10 +175,12 @@ static void initWorld(const char* filename)
     cookie->y = -1;
     cookie->next = NULL;
 
-    for (y = 0; y < height; ++y)
+    for (y = 0; y < world->height; ++y)
     {
-        for (x = 0; x < width; ++x)
-            if (getworld(x,y) == 2)
+        for (x = 0; x < world->width; ++x)
+            if (getworld(x,y)[0] == 255 &&
+                getworld(x,y)[1] == 0 &&
+                getworld(x,y)[2] == 0)
             {
                 currentPoint = addPoint(cookie);
                 currentPoint->x = x;
@@ -203,7 +188,7 @@ static void initWorld(const char* filename)
             }
     }
 
-    srand(width*height);
+    srand(world->width*world->height);
 
     /* Spawn a brand new cloud. */
     cloud->w = 1 + rand() % 12;
@@ -217,7 +202,6 @@ static void initWorld(const char* filename)
     for (i = 1; i < CLOUDS; ++i)
         addCloud(cloud);
 
-    cookies = 0;
     direction = 0;
 }
 
@@ -255,14 +239,14 @@ static void moveSnake(void)
             break;
     }
 
-    if (snake->x >= width)
+    if (snake->x >= world->width)
         snake->x = 0;
     else if (snake->x < 0)
-        snake->x = width - 1;
-    else if (snake->y >= height)
+        snake->x = world->width - 1;
+    else if (snake->y >= world->height)
         snake->y = 0;
     else if (snake->y < 0)
-        snake->y = height - 1;
+        snake->y = world->height - 1;
 }
 
 static int occupied(int x, int y)
@@ -270,7 +254,7 @@ static int occupied(int x, int y)
     struct point* currentPoint;
 
     /* Check if point is in the world. */
-    if (getworld(x,y) == 1)
+    if (getworld(x,y)[0] == 255)
         return 3;
 
     /* Check if point is in the body of the snake. */
@@ -294,8 +278,8 @@ static void moveCookie(struct point* cookie)
 {
     while (occupied(cookie->x, cookie->y))
     {
-        cookie->x = rand() % width;
-        cookie->y = rand() % height;
+        cookie->x = rand() % world->width;
+        cookie->y = rand() % world->height;
     }
 }
 
@@ -309,8 +293,8 @@ static void interact(void)
     if (occupied(snake->x, snake->y) > 1)
     {
         /* Spawn a brand new snake. It's only a head for now. */
-        snake->x = width / 2;
-        snake->y = height / 2;
+        snake->x = world->width / 2;
+        snake->y = world->height / 2;
         snake->next = NULL;
 
         /* Let the snake grow for a while. */
@@ -340,11 +324,51 @@ static void display(void)
     struct point* currentPoint;
     struct cloud* currentCloud;
     float diffuse[] = {0, 0, 0, 1};
+    float dx;
+    float dy;
+
+    switch (direction)
+    {
+        case 0:
+            dx = (float)wait/WAIT;
+            dy = 0.0;
+            break;
+
+        case 1:
+            dx = -(float)wait/WAIT;
+            dy = 0.0;
+            break;
+
+        case 2:
+            dx = 0.0;
+            dy = -(float)wait/WAIT;
+            break;
+
+        case 3:
+            dx = 0.0;
+            dy = (float)wait/WAIT;
+            break;
+    }
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glPushMatrix();
-    gluLookAt(0.5, 2.0, 2.0, 0.5, 0.0, 0.5, 0.0, 1.0, 0.0);
+    glScalef(1/(float)world->width, 1.0/world->width, 1/(float)world->height);
+    gluLookAt(snake->x + dx,
+              48.0,
+              snake->y + dy + 64,
+              snake->x + dx,
+              0.0,
+              snake->y + dy,
+              0.0, 1.0, 0.0);
 
+#if 0
+    gluLookAt((float)snake->x / world->width,
+              1.50,
+              (float)snake->y / world->height + 1.25,
+              (float)snake->x / world->width,
+              1.0,
+              (float)snake->y / world->height,
+              0.0, 1.0, 0.0);
     /* Draw clouds. */
     diffuse[0] = 1;
     diffuse[1] = 1;
@@ -362,14 +386,13 @@ static void display(void)
         glutSolidSphere(1.0, 64, 64);
         glPopMatrix();
     }
+#endif
 
     /* Draw snake. */
     diffuse[0] = 0.0;
     diffuse[1] = 0.25 /*+ 0.0625 * sin(z*64)*/;
     diffuse[2] = 0.0;
     diffuse[3] = 1.0;
-    glTranslatef(0, 0.25, 0);
-    glScalef(1/(float)width, 1.0/width, 1/(float)height);
     glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, diffuse);
     for (currentPoint = snake, z = 0; currentPoint != NULL; currentPoint = currentPoint->next, ++z)
     {
@@ -396,13 +419,13 @@ static void display(void)
 
     glTranslatef(0, -1, 0);
     /* Draw world. */
-    for (y = 0; y < height; ++y)
+    for (y = 0; y < world->height; ++y)
     {
-        for (x = 0; x < width; ++x)
+        for (x = 0; x < world->width; ++x)
         {
-            if (getworld(x,y) == 1)
+            if (getworld(x,y)[0] == 255)
             {
-                z = 5 + 0.25 * sin((float)x*32/width + t/1000) + 0.25 * cos((float)y*32/height + t/1000);
+                z = 5 + 0.25 * sin((float)x*32/world->width + t/1000) + 0.25 * cos((float)y*32/world->height + t/1000);
                 diffuse[3] = 0.5;
             }
             else
@@ -411,9 +434,9 @@ static void display(void)
                 diffuse[3] = 0.75;
             }
 
-            diffuse[0] = 0.125 + 0.125 * sin((float)x*8/width + t/2000) + 0.125 * cos((float)y*8/height + t/2000),
-            diffuse[1] = 0.125 + 0.125 * sin((float)x*8/width - t/2000) + 0.125 * cos((float)y*8/height - t/2000),
-            diffuse[2] = 0.125;
+            diffuse[0] = 0.5 + 0.3 * sin(sin(x * 6.0/world->width + 340 + y*16.0/world->height) + sin(y * 16.0/world->height + 220 + x*12.0/world->width) * 3.0 + (float)x*64/world->width + 600);
+            diffuse[1] = 0.5 + 0.3 * sin(sin(x * 6.0/world->width + 340 + y*16.0/world->height) + sin(y * 16.0/world->height + 220 + x*12.0/world->width) * 3.0 + (float)x*64/world->width + 600);
+            diffuse[2] = 0.5 + 0.3 * sin(sin(x * 6.0/world->width + 340 + y*16.0/world->height) + sin(y * 16.0/world->height + 220 + x*12.0/world->width) * 3.0 + (float)x*64/world->width + 600);
             glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, diffuse);
 
             glTranslatef(x, -0.5 + z/2, y);
@@ -458,7 +481,7 @@ static void reshape(int w, int h)
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     glViewport(0, 0, w, h);
-    gluPerspective(30, ratio, 1, 1000);
+    gluPerspective(30, ratio, 0.01, 1000);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 }
