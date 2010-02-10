@@ -353,12 +353,12 @@ static void display(void)
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glPushMatrix();
     glScalef(1/(float)world->width, 1.0/world->width, 1/(float)world->height);
-    gluLookAt(snake->x + dx,
+    gluLookAt(snake->x / 24 * 24 + 12,
               48.0,
-              snake->y + dy + 64,
-              snake->x + dx,
+              snake->y / 24 * 24 + 76,
+              snake->x / 24 * 24 + 12,
               0.0,
-              snake->y + dy,
+              snake->y / 24 * 24 + 12,
               0.0, 1.0, 0.0);
 
 #if 0
